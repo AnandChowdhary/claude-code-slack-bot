@@ -1,5 +1,6 @@
 export interface CloudflareBindings {
   SLACK_BOT_USER_OAUTH_TOKEN: string;
+  SLACK_BOT_USER_ID?: string;
   GITHUB_TOKEN: string;
   GITHUB_OWNER: string;
   GITHUB_REPO: string;

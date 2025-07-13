@@ -18,9 +18,9 @@ app.all("/slack/events", async (c) => {
   const slackApp = new SlackApp({ env } as any);
   const handler = new GitHubSlackHandler(c.env);
 
-  // Handle app_mention events - now creates GitHub issues
+  // Handle app_mention events - creates GitHub issues
   slackApp.event("app_mention", async ({ payload, context }) => {
-    await handler.handleMessage({
+    await handler.handleMention({
       text: payload.text,
       channel: payload.channel,
       thread_ts: payload.thread_ts,
@@ -29,7 +29,41 @@ app.all("/slack/events", async (c) => {
     });
   });
 
-  // Note: Removed message event handler since we only respond to direct mentions now
+  // Handle message events in threads - adds comments to existing issues
+  slackApp.event("message", async ({ payload, context }) => {
+    // Type guard to check if this is a regular message with text
+    if (
+      "text" in payload &&
+      payload.text &&
+      "thread_ts" in payload &&
+      payload.thread_ts
+    ) {
+      // Skip if this is a bot message
+      if ("subtype" in payload && payload.subtype === "bot_message") {
+        return;
+      }
+
+      // Skip if message contains a bot mention (handled by app_mention event)
+      if (payload.text.includes(`<@${env.SLACK_BOT_USER_ID || ""}>`)) {
+        return;
+      }
+
+      // Check if bot has created an issue for this thread
+      const kvKey = `github_issue:${payload.channel}:${payload.thread_ts}`;
+      const issueData = await c.env.KV.get(kvKey);
+
+      // Only respond if we have an issue for this thread
+      if (issueData) {
+        await handler.handleReply({
+          text: payload.text,
+          channel: payload.channel,
+          thread_ts: payload.thread_ts,
+          ts: payload.ts,
+          context,
+        });
+      }
+    }
+  });
 
   // Run the Slack app handler
   return await slackApp.run(c.req.raw, c.executionCtx);

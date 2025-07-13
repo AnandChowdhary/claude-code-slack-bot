@@ -1,3 +1,5 @@
+import { Octokit } from "@octokit/rest";
+
 interface GitHubIssueResponse {
   id: number;
   number: number;
@@ -12,13 +14,14 @@ interface GitHubError {
 }
 
 export class GitHubService {
-  private token: string;
+  private octokit: Octokit;
   private owner: string;
   private repo: string;
-  private apiUrl = "https://api.github.com";
 
   constructor(token: string, owner: string, repo: string) {
-    this.token = token;
+    this.octokit = new Octokit({
+      auth: token,
+    });
     this.owner = owner;
     this.repo = repo;
   }
@@ -29,39 +32,51 @@ export class GitHubService {
     labels?: string[]
   ): Promise<GitHubIssueResponse | GitHubError> {
     try {
-      const response = await fetch(
-        `${this.apiUrl}/repos/${this.owner}/${this.repo}/issues`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            title,
-            body,
-            labels: labels || [],
-          }),
-        }
-      );
+      const response = await this.octokit.issues.create({
+        owner: this.owner,
+        repo: this.repo,
+        title,
+        body,
+        labels: labels || [],
+      });
 
-      if (!response.ok) {
-        const errorData = (await response.json()) as { message: string };
-        return {
-          error: errorData.message || "Failed to create issue",
-          status: response.status,
-        };
-      }
-
-      const data = await response.json();
-      return data as GitHubIssueResponse;
-    } catch (error) {
+      return {
+        id: response.data.id,
+        number: response.data.number,
+        html_url: response.data.html_url,
+        title: response.data.title,
+        state: response.data.state,
+      };
+    } catch (error: any) {
       console.error("Error creating GitHub issue:", error);
       return {
-        error: error instanceof Error ? error.message : String(error),
-        status: 500,
+        error: error.message || "Failed to create issue",
+        status: error.status || 500,
+      };
+    }
+  }
+
+  async createIssueComment(
+    issueNumber: number,
+    body: string
+  ): Promise<{ id: number; html_url: string } | GitHubError> {
+    try {
+      const response = await this.octokit.issues.createComment({
+        owner: this.owner,
+        repo: this.repo,
+        issue_number: issueNumber,
+        body,
+      });
+
+      return {
+        id: response.data.id,
+        html_url: response.data.html_url,
+      };
+    } catch (error: any) {
+      console.error("Error creating GitHub comment:", error);
+      return {
+        error: error.message || "Failed to create comment",
+        status: error.status || 500,
       };
     }
   }
@@ -78,6 +93,19 @@ export class GitHubService {
       "",
       "---",
       "_This issue was automatically created from a Slack conversation._",
+    ];
+
+    return sections.join("\n");
+  }
+
+  formatCommentBody(userMessage: string, timestamp: string): string {
+    const sections = [
+      `**New message from Slack thread** (${timestamp})`,
+      "",
+      userMessage,
+      "",
+      "---",
+      "_This comment was automatically added from the Slack conversation._",
     ];
 
     return sections.join("\n");

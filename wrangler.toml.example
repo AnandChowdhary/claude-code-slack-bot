@@ -6,6 +6,9 @@ compatibility_date = "2024-01-01"
 # Slack Bot OAuth Token
 # SLACK_BOT_USER_OAUTH_TOKEN = "xoxb-your-slack-bot-token"
 
+# Slack Bot User ID (optional, helps filter bot mentions in replies)
+# SLACK_BOT_USER_ID = "U1234567890"
+
 # GitHub Personal Access Token (needs repo scope)
 # GITHUB_TOKEN = "ghp_your-github-token"
 
