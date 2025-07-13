@@ -2,7 +2,7 @@ import { GitHubService } from "../services/github";
 import { CloudflareBindings, MessageContext } from "../types";
 
 const GITHUB_OWNER = "firstquadrant-ai";
-const GITHUB_REPO = "firstquadrant";
+const GITHUB_REPO = "firstquadrant.ai";
 
 export class GitHubSlackHandler {
   private env: CloudflareBindings;
