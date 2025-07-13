@@ -1,0 +1,19 @@
+name = "github-slack-bot"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+# Slack Bot OAuth Token
+# SLACK_BOT_USER_OAUTH_TOKEN = "xoxb-your-slack-bot-token"
+
+# GitHub Personal Access Token (needs repo scope)
+# GITHUB_TOKEN = "ghp_your-github-token"
+
+# GitHub repository details
+# GITHUB_OWNER = "your-github-username-or-org"
+# GITHUB_REPO = "your-repo-name"
+
+
+[[kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id"

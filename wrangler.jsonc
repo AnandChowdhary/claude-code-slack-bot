@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "claude-code-slack",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-07-13",
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "kv_namespaces": [
+    { "binding": "KV", "id": "1b37967f720547e7b7c246786229eb9d" }
+  ]
+}
