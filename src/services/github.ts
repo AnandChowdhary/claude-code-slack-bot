@@ -19,6 +19,13 @@ export class GitHubService {
   private repo: string;
 
   constructor(token: string, owner: string, repo: string) {
+    console.log("Initializing GitHub service with:", {
+      owner,
+      repo,
+      tokenLength: token?.length || 0,
+      tokenPrefix: token?.substring(0, 4) || "none",
+    });
+
     this.octokit = new Octokit({
       auth: token,
     });
@@ -32,12 +39,26 @@ export class GitHubService {
     labels?: string[]
   ): Promise<GitHubIssueResponse | GitHubError> {
     try {
+      console.log("Creating GitHub issue with params:", {
+        owner: this.owner,
+        repo: this.repo,
+        title,
+        bodyLength: body?.length || 0,
+        labels,
+      });
+
       const response = await this.octokit.issues.create({
         owner: this.owner,
         repo: this.repo,
         title,
         body,
         labels: labels || [],
+      });
+
+      console.log("GitHub issue created successfully:", {
+        id: response.data.id,
+        number: response.data.number,
+        url: response.data.html_url,
       });
 
       return {
@@ -48,7 +69,12 @@ export class GitHubService {
         state: response.data.state,
       };
     } catch (error: any) {
-      console.error("Error creating GitHub issue:", error);
+      console.error("Error creating GitHub issue:", {
+        message: error.message,
+        status: error.status,
+        response: error.response?.data,
+        headers: error.response?.headers,
+      });
       return {
         error: error.message || "Failed to create issue",
         status: error.status || 500,
@@ -61,6 +87,13 @@ export class GitHubService {
     body: string
   ): Promise<{ id: number; html_url: string } | GitHubError> {
     try {
+      console.log("Creating GitHub comment with params:", {
+        owner: this.owner,
+        repo: this.repo,
+        issue_number: issueNumber,
+        bodyLength: body?.length || 0,
+      });
+
       const response = await this.octokit.issues.createComment({
         owner: this.owner,
         repo: this.repo,
@@ -68,12 +101,22 @@ export class GitHubService {
         body,
       });
 
+      console.log("GitHub comment created successfully:", {
+        id: response.data.id,
+        url: response.data.html_url,
+      });
+
       return {
         id: response.data.id,
         html_url: response.data.html_url,
       };
     } catch (error: any) {
-      console.error("Error creating GitHub comment:", error);
+      console.error("Error creating GitHub comment:", {
+        message: error.message,
+        status: error.status,
+        response: error.response?.data,
+        headers: error.response?.headers,
+      });
       return {
         error: error.message || "Failed to create comment",
         status: error.status || 500,

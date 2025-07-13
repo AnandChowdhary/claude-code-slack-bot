@@ -1,7 +1,7 @@
 import { GitHubService } from "../services/github";
 import { CloudflareBindings, MessageContext } from "../types";
 
-const GITHUB_OWNER = "firstquadrant";
+const GITHUB_OWNER = "firstquadrant-ai";
 const GITHUB_REPO = "firstquadrant";
 
 export class GitHubSlackHandler {
@@ -10,11 +10,20 @@ export class GitHubSlackHandler {
   private kvPrefix = "github_issue:";
 
   constructor(env: CloudflareBindings) {
+    console.log("Initializing GitHubSlackHandler with env vars:", {
+      hasGithubToken: !!env.GITHUB_TOKEN,
+      githubTokenLength: env.GITHUB_TOKEN?.length || 0,
+      githubTokenPrefix: env.GITHUB_TOKEN?.substring(0, 4) || "none",
+      githubOwner: env.GITHUB_OWNER || GITHUB_OWNER,
+      githubRepo: env.GITHUB_REPO || GITHUB_REPO,
+      usingDefaults: !env.GITHUB_OWNER || !env.GITHUB_REPO,
+    });
+
     this.env = env;
     this.github = new GitHubService(
       env.GITHUB_TOKEN,
-      GITHUB_OWNER,
-      GITHUB_REPO
+      env.GITHUB_OWNER || GITHUB_OWNER,
+      env.GITHUB_REPO || GITHUB_REPO
     );
   }
 
@@ -115,8 +124,8 @@ export class GitHubSlackHandler {
 
       if (isDebugMode) {
         debugInfo.push("Creating GitHub issue...");
-        debugInfo.push(`Owner: ${GITHUB_OWNER}`);
-        debugInfo.push(`Repo: ${GITHUB_REPO}`);
+        debugInfo.push(`Owner: ${this.env.GITHUB_OWNER || GITHUB_OWNER}`);
+        debugInfo.push(`Repo: ${this.env.GITHUB_REPO || GITHUB_REPO}`);
         debugInfo.push(`Title: "New feature request"`);
         debugInfo.push(`Labels: slack-request, feature-request`);
       }
@@ -132,6 +141,32 @@ export class GitHubSlackHandler {
         if (isDebugMode) {
           debugInfo.push(`❌ Failed to create issue: ${result.error}`);
           debugInfo.push(`Status code: ${result.status}`);
+
+          // Add more debug info for 401 errors
+          if (result.status === 401) {
+            debugInfo.push("⚠️ Authentication failed - possible causes:");
+            debugInfo.push("- Invalid GitHub token");
+            debugInfo.push("- Token lacks 'repo' scope");
+            debugInfo.push("- Token expired");
+            debugInfo.push(
+              `Token info: ${this.env.GITHUB_TOKEN?.substring(0, 4)}... (${
+                this.env.GITHUB_TOKEN?.length
+              } chars)`
+            );
+          }
+
+          // Add debug info for 404 errors
+          if (result.status === 404) {
+            debugInfo.push("⚠️ Repository not found - possible causes:");
+            debugInfo.push(
+              `- Repository ${this.env.GITHUB_OWNER || GITHUB_OWNER}/${
+                this.env.GITHUB_REPO || GITHUB_REPO
+              } doesn't exist`
+            );
+            debugInfo.push("- Token doesn't have access to this repository");
+            debugInfo.push("- Repository is private and token lacks access");
+            debugInfo.push("- Typo in owner or repo name");
+          }
         }
 
         await slackContext.client.reactions.remove({
@@ -142,7 +177,7 @@ export class GitHubSlackHandler {
 
         const errorMessage = isDebugMode
           ? debugInfo.join("\n") +
-            `\n\nFailed to create GitHub issue: ${result.error}`
+            `\n\nFailed to create GitHub issue: ${result.error} (Status: ${result.status})`
           : `Failed to create GitHub issue: ${result.error}`;
 
         await slackContext.say({
@@ -304,6 +339,33 @@ export class GitHubSlackHandler {
       if ("error" in result) {
         if (isDebugMode) {
           debugInfo.push(`❌ Failed to create comment: ${result.error}`);
+          debugInfo.push(`Status code: ${result.status}`);
+
+          // Add more debug info for 401 errors
+          if (result.status === 401) {
+            debugInfo.push("⚠️ Authentication failed - possible causes:");
+            debugInfo.push("- Invalid GitHub token");
+            debugInfo.push("- Token lacks 'repo' scope");
+            debugInfo.push("- Token expired");
+            debugInfo.push(
+              `Token info: ${this.env.GITHUB_TOKEN?.substring(0, 4)}... (${
+                this.env.GITHUB_TOKEN?.length
+              } chars)`
+            );
+          }
+
+          // Add debug info for 404 errors
+          if (result.status === 404) {
+            debugInfo.push("⚠️ Repository not found - possible causes:");
+            debugInfo.push(
+              `- Repository ${this.env.GITHUB_OWNER || GITHUB_OWNER}/${
+                this.env.GITHUB_REPO || GITHUB_REPO
+              } doesn't exist`
+            );
+            debugInfo.push("- Token doesn't have access to this repository");
+            debugInfo.push("- Repository is private and token lacks access");
+            debugInfo.push("- Typo in owner or repo name");
+          }
         }
 
         await slackContext.client.reactions.remove({
@@ -313,7 +375,8 @@ export class GitHubSlackHandler {
         });
 
         const errorMessage = isDebugMode
-          ? debugInfo.join("\n") + `\n\nFailed to add comment: ${result.error}`
+          ? debugInfo.join("\n") +
+            `\n\nFailed to add comment: ${result.error} (Status: ${result.status})`
           : `Failed to add comment to issue #${issueData.issueNumber}: ${result.error}`;
 
         await slackContext.say({
