@@ -11,6 +11,7 @@ interface ProgressCheckRequest {
   slackMessageTs?: string;
   originalMessageTs?: string;
   startTime?: number;
+  isFinalCheck?: boolean;
 }
 
 interface SlackClient {
@@ -114,16 +115,49 @@ export class ProgressChecker {
         updated_at: latestComment.updated_at,
       });
 
-      const slackMessage = this.formatCommentForSlack(latestComment);
+      const slackMessages = this.formatCommentForSlack(latestComment);
 
-      const slackResponse = await this.postToSlack(
-        channel,
-        threadId,
-        slackMessage,
-        hasBeenUpdated ? slackMessageTs : undefined
-      );
+      let slackResponse = null;
+      let newSlackTs = slackMessageTs;
 
-      const newSlackTs = slackResponse?.ts || slackMessageTs;
+      // For updates, we can only update with the first message
+      if (hasBeenUpdated && slackMessages.length > 0) {
+        // If the first message is too long for an update, post as new messages instead
+        if (slackMessages[0].length > 3900) {
+          // Leave some buffer for Slack metadata
+          console.log(
+            "Updated message too long, posting as new messages instead"
+          );
+          for (const message of slackMessages) {
+            slackResponse = await this.postToSlack(channel, threadId, message);
+          }
+        } else {
+          slackResponse = await this.postToSlack(
+            channel,
+            threadId,
+            slackMessages[0],
+            slackMessageTs
+          );
+
+          // Post remaining messages as new messages
+          for (let i = 1; i < slackMessages.length; i++) {
+            await this.postToSlack(channel, threadId, slackMessages[i]);
+          }
+        }
+      } else {
+        // For new comments, post all messages
+        for (let i = 0; i < slackMessages.length; i++) {
+          slackResponse = await this.postToSlack(
+            channel,
+            threadId,
+            slackMessages[i]
+          );
+          // Save the timestamp of the first message
+          if (i === 0) {
+            newSlackTs = slackResponse?.ts || slackMessageTs;
+          }
+        }
+      }
 
       if (this.github.isTaskFinished(latestComment.body)) {
         console.log("Task marked as finished, stopping progress check");
@@ -132,6 +166,24 @@ export class ProgressChecker {
           await this.removeEyesEmoji(channel, request.originalMessageTs);
         }
 
+        // Do one final check to capture any last updates
+        return {
+          shouldContinue: true,
+          nextRequest: {
+            ...request,
+            attemptCount: attemptCount + 1,
+            lastCommentId: latestComment.id,
+            slackMessageTs: newSlackTs,
+            originalMessageTs: request.originalMessageTs,
+            startTime: request.startTime,
+            isFinalCheck: true,
+          },
+        };
+      }
+
+      // If this was the final check, stop now
+      if (request.isFinalCheck) {
+        console.log("Final check completed");
         return { shouldContinue: false };
       }
 
@@ -157,10 +209,85 @@ export class ProgressChecker {
     };
   }
 
-  private formatCommentForSlack(comment: any): string {
+  private formatCommentForSlack(comment: any): string[] {
     const link = `<${comment.html_url}|View on GitHub>`;
     const body = markdownToSlack(comment.body);
-    return `${body}\n\n${link}`;
+    const maxLength = 3900; // Leave buffer for Slack metadata
+
+    // If the message is short, return as single message
+    if (body.length + link.length + 4 < maxLength) {
+      return [`${body}\n\n${link}`];
+    }
+
+    // Split by double newlines (paragraphs)
+    const paragraphs = body.split(/\n\n+/).filter((p) => p.trim());
+    const messages: string[] = [];
+    let currentMessage = "";
+
+    for (let i = 0; i < paragraphs.length; i++) {
+      let paragraph = paragraphs[i];
+
+      // Handle paragraphs that are themselves too long
+      while (paragraph.length > maxLength - 100) {
+        // Leave room for formatting
+        // Find a good breaking point (period, newline, or space)
+        let breakPoint = maxLength - 100;
+        const lastPeriod = paragraph.lastIndexOf(".", breakPoint);
+        const lastNewline = paragraph.lastIndexOf("\n", breakPoint);
+        const lastSpace = paragraph.lastIndexOf(" ", breakPoint);
+
+        breakPoint = Math.max(lastPeriod, lastNewline, lastSpace);
+        if (breakPoint <= 0) breakPoint = maxLength - 100;
+
+        const chunk = paragraph.substring(0, breakPoint).trim();
+        paragraph = paragraph.substring(breakPoint).trim();
+
+        if (
+          currentMessage &&
+          (currentMessage + "\n\n" + chunk).length > maxLength
+        ) {
+          messages.push(currentMessage);
+          currentMessage = chunk;
+        } else {
+          currentMessage = currentMessage
+            ? `${currentMessage}\n\n${chunk}`
+            : chunk;
+        }
+      }
+
+      // Add the remaining paragraph
+      if (paragraph) {
+        if (
+          currentMessage &&
+          (currentMessage + "\n\n" + paragraph).length > maxLength
+        ) {
+          messages.push(currentMessage);
+          currentMessage = paragraph;
+        } else {
+          currentMessage = currentMessage
+            ? `${currentMessage}\n\n${paragraph}`
+            : paragraph;
+        }
+      }
+    }
+
+    // Add any remaining content
+    if (currentMessage) {
+      messages.push(currentMessage);
+    }
+
+    // Add the link to the last message if it fits
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.length + link.length + 4 < maxLength) {
+        messages[messages.length - 1] += `\n\n${link}`;
+      } else {
+        // If link doesn't fit, add it as a separate message
+        messages.push(link);
+      }
+    }
+
+    return messages.length > 0 ? messages : [link];
   }
 
   private async postToSlack(

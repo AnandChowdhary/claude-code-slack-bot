@@ -120,20 +120,24 @@ export class GitHubSlackHandler {
         cleanedMessage
       );
 
+      // Create a descriptive title from the first few words of the message
+      const titleWords = cleanedMessage.split(/\s+/).slice(0, 8).join(" ");
+      const issueTitle = `Request from Slack: ${titleWords}${
+        cleanedMessage.split(/\s+/).length > 8 ? "..." : ""
+      }`;
+
       if (isDebugMode) {
         debugInfo.push("Creating GitHub issue...");
         debugInfo.push(`Owner: ${this.env.GITHUB_OWNER || GITHUB_OWNER}`);
         debugInfo.push(`Repo: ${this.env.GITHUB_REPO || GITHUB_REPO}`);
-        debugInfo.push(`Title: "New feature request"`);
+        debugInfo.push(`Title: "${issueTitle}"`);
         debugInfo.push(`Labels: slack-request`);
       }
 
       console.log("Creating GitHub issue from Slack message");
-      const result = await this.github.createIssue(
-        "New feature request",
-        issueBody,
-        ["slack-request"]
-      );
+      const result = await this.github.createIssue(issueTitle, issueBody, [
+        "slack-request",
+      ]);
 
       if ("error" in result) {
         if (isDebugMode) {
