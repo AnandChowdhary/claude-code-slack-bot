@@ -16,6 +16,9 @@ compatibility_date = "2024-01-01"
 # GITHUB_OWNER = "your-github-username-or-org"
 # GITHUB_REPO = "your-repo-name"
 
+# Worker URL for self-referencing (for progress checks)
+# WORKER_URL = "https://your-worker-name.your-subdomain.workers.dev"
+
 
 [[kv_namespaces]]
 binding = "KV"

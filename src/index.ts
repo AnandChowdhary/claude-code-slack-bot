@@ -1,9 +1,13 @@
 import { Hono } from "hono";
 import { SlackApp } from "slack-cloudflare-workers";
 import { GitHubSlackHandler } from "./handlers/github-slack";
+import { ProgressChecker } from "./handlers/progress-checker";
 import { CloudflareBindings } from "./types";
 
-const app = new Hono<{ Bindings: CloudflareBindings }>();
+const app = new Hono<{
+  Bindings: CloudflareBindings;
+  ExecutionContext: ExecutionContext;
+}>();
 
 app.get("/", (c) => {
   return c.text("Hello Hono!");
@@ -67,6 +71,42 @@ app.all("/slack/events", async (c) => {
 
   // Run the Slack app handler
   return await slackApp.run(c.req.raw, c.executionCtx);
+});
+
+// Progress checking endpoint
+app.post("/check-progress", async (c) => {
+  const body = await c.req.json();
+  const checker = new ProgressChecker(c.env);
+
+  console.log("Progress check request received:", body);
+
+  try {
+    const result = await checker.checkProgress(body);
+
+    if (result.shouldContinue && result.nextRequest) {
+      // Schedule the next check using waitUntil
+      const baseUrl = new URL(c.req.url).origin;
+
+      c.executionCtx.waitUntil(
+        checker.scheduleNextCheck(result.nextRequest, baseUrl)
+      );
+    }
+
+    return c.json({
+      success: true,
+      shouldContinue: result.shouldContinue,
+      attemptCount: result.nextRequest?.attemptCount || body.attemptCount,
+    });
+  } catch (error) {
+    console.error("Progress check error:", error);
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      500
+    );
+  }
 });
 
 export default app;

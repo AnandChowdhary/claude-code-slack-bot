@@ -243,6 +243,13 @@ export class GitHubSlackHandler {
         timestamp: ts,
         name: "eyes",
       });
+
+      // Trigger progress checking after 1 minute
+      await this.triggerProgressCheck({
+        issueNumber: result.number,
+        channel,
+        threadId,
+      });
     } catch (error) {
       console.error("Error processing message:", error);
 
@@ -468,6 +475,51 @@ export class GitHubSlackHandler {
     } catch (error) {
       console.error("Failed to fetch thread history:", error);
       return "Failed to fetch thread history";
+    }
+  }
+
+  private async triggerProgressCheck(params: {
+    issueNumber: number;
+    channel: string;
+    threadId: string;
+  }): Promise<void> {
+    try {
+      console.log(
+        "Scheduling progress check in 60 seconds for issue:",
+        params.issueNumber
+      );
+
+      // Get the base URL from environment or use a default
+      const baseUrl =
+        this.env.WORKER_URL || "https://claude-code-slack.pabio.workers.dev";
+
+      // Schedule the first check after 1 minute
+      setTimeout(async () => {
+        try {
+          const response = await fetch(`${baseUrl}/check-progress`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              issueNumber: params.issueNumber,
+              channel: params.channel,
+              threadId: params.threadId,
+              attemptCount: 0,
+            }),
+          });
+
+          if (!response.ok) {
+            console.error("Failed to trigger progress check:", response.status);
+          } else {
+            console.log("Progress check triggered successfully");
+          }
+        } catch (error) {
+          console.error("Error triggering progress check:", error);
+        }
+      }, 60000); // 1 minute delay
+    } catch (error) {
+      console.error("Failed to schedule progress check:", error);
     }
   }
 }

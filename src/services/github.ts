@@ -151,6 +151,95 @@ export class GitHubService {
     return sections.join("\n");
   }
 
+  async getIssueComments(
+    issueNumber: number,
+    since?: string
+  ): Promise<
+    | {
+        id: number;
+        user: { login: string };
+        body: string;
+        created_at: string;
+        updated_at: string;
+        html_url: string;
+      }[]
+    | GitHubError
+  > {
+    try {
+      console.log("Fetching issue comments:", {
+        owner: this.owner,
+        repo: this.repo,
+        issue_number: issueNumber,
+        since,
+      });
+
+      const response = await this.octokit.issues.listComments({
+        owner: this.owner,
+        repo: this.repo,
+        issue_number: issueNumber,
+        since,
+        per_page: 100,
+      });
+
+      console.log(`Found ${response.data.length} comments`);
+
+      return response.data.map((comment) => ({
+        id: comment.id,
+        user: { login: comment.user?.login || "" },
+        body: comment.body || "",
+        created_at: comment.created_at,
+        updated_at: comment.updated_at,
+        html_url: comment.html_url,
+      }));
+    } catch (error: any) {
+      console.error("Error fetching issue comments:", {
+        message: error.message,
+        status: error.status,
+      });
+      return {
+        error: error.message || "Failed to fetch comments",
+        status: error.status || 500,
+      };
+    }
+  }
+
+  findClaudeComments(comments: any[]): any[] {
+    // Claude's GitHub username might be 'claude-ai', 'claude', or similar
+    // We'll also check for comments that start with the Claude response pattern
+    return comments.filter((comment) => {
+      const username = comment.user.login.toLowerCase();
+      const isClaude =
+        username.includes("claude") ||
+        username.includes("anthropic") ||
+        comment.body.includes("I'll help") ||
+        comment.body.includes("I will help") ||
+        comment.body.includes("Let me help");
+
+      if (isClaude) {
+        console.log(`Found Claude comment from user: ${comment.user.login}`);
+      }
+
+      return isClaude;
+    });
+  }
+
+  isClaudeFinished(commentBody: string): boolean {
+    // Check for various completion patterns
+    const finishedPatterns = [
+      "claude finished",
+      "implementation complete",
+      "task completed",
+      "done implementing",
+      "finished implementing",
+      "completed the implementation",
+      "all changes have been made",
+      "implementation is complete",
+    ];
+
+    const lowerBody = commentBody.toLowerCase();
+    return finishedPatterns.some((pattern) => lowerBody.includes(pattern));
+  }
+
   formatCommentBody(userMessage: string, timestamp: string): string {
     const sections = [
       "@claude, there's an update from the user in the Slack thread:",

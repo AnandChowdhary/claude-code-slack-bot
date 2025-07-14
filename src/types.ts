@@ -4,6 +4,7 @@ export interface CloudflareBindings {
   GITHUB_TOKEN: string;
   GITHUB_OWNER: string;
   GITHUB_REPO: string;
+  WORKER_URL?: string;
   KV: KVNamespace;
 }
 
