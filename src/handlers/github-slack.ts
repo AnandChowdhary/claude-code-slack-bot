@@ -218,27 +218,24 @@ export class GitHubSlackHandler {
         }
       }
 
-      let responseText = [
-        `✅ GitHub issue created successfully!`,
-        ``,
-        `*Issue #${result.number}:* ${result.title}`,
-        `*Link:* <${result.html_url}|View on GitHub>`,
-        ``,
-        `The full thread context has been included in the issue description.`,
-      ].join("\n");
-
       if (isDebugMode) {
+        let responseText = [
+          `✅ GitHub issue created successfully!`,
+          ``,
+          `*Issue #${result.number}:* ${result.title}`,
+          `*Link:* <${result.html_url}|View on GitHub>`,
+          ``,
+          `The full thread context has been included in the issue description.`,
+        ].join("\n");
+
         responseText = debugInfo.join("\n") + "\n\n---\n\n" + responseText;
+
+        await slackContext.say({
+          text: responseText,
+          thread_ts: threadId,
+        });
       }
 
-      await slackContext.say({
-        text: responseText,
-        thread_ts: threadId,
-      });
-
-      // Don't remove the eyes emoji yet - wait until the task is complete
-
-      // Trigger progress checking after delay
       await this.triggerProgressCheck(
         {
           issueNumber: result.number,
@@ -496,12 +493,11 @@ export class GitHubSlackHandler {
         threadId: params.threadId,
         attemptCount: 0,
         originalMessageTs: params.originalMessageTs,
-        startTime: Date.now(), // Track when monitoring started
+        startTime: Date.now(),
       };
 
-      // Send the initial check to the queue with a delay
       await this.env.PROGRESS_QUEUE.send(payload, {
-        delaySeconds: 10, // Initial 10 second delay
+        delaySeconds: 10,
       });
 
       console.log("Progress check queued successfully");

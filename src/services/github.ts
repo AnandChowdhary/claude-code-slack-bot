@@ -202,28 +202,11 @@ export class GitHubService {
   }
 
   isTaskFinished(commentBody: string): boolean {
-    // Check if the comment contains the "Create PR" button/link
     if (commentBody.includes("[Create PR ➔]")) {
       return true;
     }
 
-    // Also check for other completion patterns
-    const finishedPatterns = [
-      "claude finished",
-      "implementation complete",
-      "task completed",
-      "done implementing",
-      "finished implementing",
-      "completed the implementation",
-      "all changes have been made",
-      "implementation is complete",
-      "resolved",
-      "fixed",
-      "closing this issue",
-    ];
-
-    const lowerBody = commentBody.toLowerCase();
-    return finishedPatterns.some((pattern) => lowerBody.includes(pattern));
+    return false;
   }
 
   formatCommentBody(userMessage: string, timestamp: string): string {

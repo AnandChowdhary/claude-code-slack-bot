@@ -108,7 +108,6 @@ app.post("/check-progress", async (c) => {
 export default {
   fetch: app.fetch,
   queue: async (batch: MessageBatch, env: CloudflareBindings) => {
-    // Import ProgressChecker inside the handler to avoid circular dependencies
     const { ProgressChecker } = await import("./handlers/progress-checker");
     const checker = new ProgressChecker(env);
 
@@ -120,17 +119,14 @@ export default {
         const result = await checker.checkProgress(payload);
 
         if (result.shouldContinue && result.nextRequest) {
-          // Re-queue the next check with a delay
           await env.PROGRESS_QUEUE.send(result.nextRequest, {
-            delaySeconds: 10, // 10 second delay between checks
+            delaySeconds: 10,
           });
         }
 
-        // Acknowledge the message
         message.ack();
       } catch (error) {
         console.error("Error processing queue message:", error);
-        // Retry the message
         message.retry();
       }
     }

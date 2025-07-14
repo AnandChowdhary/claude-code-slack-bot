@@ -58,7 +58,6 @@ export class ProgressChecker {
       startTime,
     });
 
-    // Check if 30 minutes have passed
     if (startTime && Date.now() - startTime > 30 * 60 * 1000) {
       console.log("30 minutes timeout reached, stopping progress check");
       await this.postToSlack(
@@ -68,7 +67,6 @@ export class ProgressChecker {
         slackMessageTs
       );
 
-      // Remove the eyes emoji since we're stopping
       if (request.originalMessageTs) {
         await this.removeEyesEmoji(channel, request.originalMessageTs);
       }
@@ -76,7 +74,6 @@ export class ProgressChecker {
       return { shouldContinue: false };
     }
 
-    // Fetch comments from GitHub
     const comments = await this.github.getIssueComments(issueNumber);
 
     if ("error" in comments) {
@@ -90,7 +87,6 @@ export class ProgressChecker {
       return { shouldContinue: false };
     }
 
-    // Get all comments
     const allComments = this.github.getAllComments(comments);
 
     if (allComments.length === 0) {
@@ -104,10 +100,8 @@ export class ProgressChecker {
       };
     }
 
-    // Get the latest comment
     const latestComment = allComments[allComments.length - 1];
 
-    // Check if this is a new comment or an update
     const isNewComment = !lastCommentId || latestComment.id > lastCommentId;
     const hasBeenUpdated =
       lastCommentId === latestComment.id &&
@@ -120,10 +114,8 @@ export class ProgressChecker {
         updated_at: latestComment.updated_at,
       });
 
-      // Format the comment for Slack
       const slackMessage = this.formatCommentForSlack(latestComment);
 
-      // Post or update in Slack
       const slackResponse = await this.postToSlack(
         channel,
         threadId,
@@ -131,14 +123,11 @@ export class ProgressChecker {
         hasBeenUpdated ? slackMessageTs : undefined
       );
 
-      // Extract message timestamp from response
       const newSlackTs = slackResponse?.ts || slackMessageTs;
 
-      // Check if task is finished
       if (this.github.isTaskFinished(latestComment.body)) {
         console.log("Task marked as finished, stopping progress check");
 
-        // Remove the eyes emoji from the original message
         if (request.originalMessageTs) {
           await this.removeEyesEmoji(channel, request.originalMessageTs);
         }
@@ -146,7 +135,6 @@ export class ProgressChecker {
         return { shouldContinue: false };
       }
 
-      // Continue checking for updates
       return {
         shouldContinue: true,
         nextRequest: {
@@ -160,7 +148,6 @@ export class ProgressChecker {
       };
     }
 
-    // No new updates, continue checking
     return {
       shouldContinue: true,
       nextRequest: {
@@ -171,23 +158,9 @@ export class ProgressChecker {
   }
 
   private formatCommentForSlack(comment: any): string {
-    const username = comment.user.login;
-    const timestamp = new Date(comment.updated_at).toLocaleString();
     const link = `<${comment.html_url}|View on GitHub>`;
-
-    // Convert GitHub markdown to Slack format
-    let body = markdownToSlack(comment.body);
-
-    // Truncate very long messages for Slack
-    if (body.length > 3000) {
-      body =
-        body.substring(0, 2900) +
-        "...\n\n_[Comment truncated. See full comment on GitHub]_";
-    }
-
-    // Format the complete message
-    const header = `💬 *Comment from ${username}* (${timestamp})`;
-    return `${header}\n\n${body}\n\n${link}`;
+    const body = markdownToSlack(comment.body);
+    return `${body}\n\n${link}`;
   }
 
   private async postToSlack(
@@ -200,7 +173,6 @@ export class ProgressChecker {
       const slack = await this.getSlackClient();
 
       if (updateTs) {
-        // Update existing message
         console.log("Updating Slack message:", updateTs);
         return await slack.chat.update({
           channel,
@@ -208,7 +180,6 @@ export class ProgressChecker {
           text,
         });
       } else {
-        // Post new message
         console.log("Posting new Slack message");
         return await slack.chat.postMessage({
           channel,
@@ -223,7 +194,6 @@ export class ProgressChecker {
   }
 
   private async getSlackClient(): Promise<SlackClient> {
-    // Using fetch to call Slack API directly since we're in Cloudflare Workers
     const token = this.env.SLACK_BOT_USER_OAUTH_TOKEN;
 
     return {
@@ -304,6 +274,4 @@ export class ProgressChecker {
       console.error("Failed to remove eyes emoji:", error);
     }
   }
-
-  // Removed scheduleNextCheck - no longer needed with direct function calls
 }
