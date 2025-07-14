@@ -504,8 +504,13 @@ export class GitHubSlackHandler {
       );
 
       // Get the base URL from environment or use a default
-      const baseUrl =
+      let baseUrl =
         this.env.WORKER_URL || "https://claude-code-slack.pabio.workers.dev";
+
+      // Ensure the URL has a protocol
+      if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+        baseUrl = "https://" + baseUrl;
+      }
 
       const checkProgress = async () => {
         try {
@@ -515,23 +520,46 @@ export class GitHubSlackHandler {
           );
 
           console.log("Triggering progress check after delay");
-          const response = await fetch(`${baseUrl}/check-progress`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              issueNumber: params.issueNumber,
-              channel: params.channel,
-              threadId: params.threadId,
-              attemptCount: 0,
-            }),
-          });
 
-          if (!response.ok) {
-            console.error("Failed to trigger progress check:", response.status);
-          } else {
-            console.log("Progress check triggered successfully");
+          // Import ProgressChecker here to avoid circular dependencies
+          const { ProgressChecker } = await import("./progress-checker");
+          const checker = new ProgressChecker(this.env);
+
+          const payload = {
+            issueNumber: params.issueNumber,
+            channel: params.channel,
+            threadId: params.threadId,
+            attemptCount: 0,
+          };
+
+          console.log(
+            "Starting progress check with payload:",
+            JSON.stringify(payload)
+          );
+
+          // Call the checker directly instead of via HTTP
+          const result = await checker.checkProgress(payload);
+
+          if (result.shouldContinue && result.nextRequest) {
+            // Schedule the next check recursively
+            const scheduleNext = async (request: any) => {
+              await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 second delay
+              console.log(
+                `Checking progress again, attempt ${request.attemptCount}`
+              );
+
+              const nextResult = await checker.checkProgress(request);
+
+              if (nextResult.shouldContinue && nextResult.nextRequest) {
+                // Continue recursively
+                await scheduleNext(nextResult.nextRequest);
+              }
+            };
+
+            // Don't await this - let it run in background
+            scheduleNext(result.nextRequest).catch((error) => {
+              console.error("Error in recursive check:", error);
+            });
           }
         } catch (error) {
           console.error("Error triggering progress check:", error);

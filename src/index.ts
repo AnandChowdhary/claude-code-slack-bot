@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { SlackApp } from "slack-cloudflare-workers";
 import { GitHubSlackHandler } from "./handlers/github-slack";
-import { ProgressChecker } from "./handlers/progress-checker";
 import { CloudflareBindings } from "./types";
 
 const app = new Hono<{
@@ -75,8 +74,11 @@ app.all("/slack/events", async (c) => {
   return await slackApp.run(c.req.raw, c.executionCtx);
 });
 
-// Progress checking endpoint
+// Progress checking endpoint - no longer needed since we use direct function calls
+// Keeping it commented in case you want to use it for manual testing
+/*
 app.post("/check-progress", async (c) => {
+  console.log("Check-progress endpoint hit");
   const body = await c.req.json();
   const checker = new ProgressChecker(c.env);
 
@@ -84,15 +86,6 @@ app.post("/check-progress", async (c) => {
 
   try {
     const result = await checker.checkProgress(body);
-
-    if (result.shouldContinue && result.nextRequest) {
-      // Schedule the next check using waitUntil
-      const baseUrl = new URL(c.req.url).origin;
-
-      c.executionCtx.waitUntil(
-        checker.scheduleNextCheck(result.nextRequest, baseUrl)
-      );
-    }
 
     return c.json({
       success: true,
@@ -110,5 +103,6 @@ app.post("/check-progress", async (c) => {
     );
   }
 });
+*/
 
 export default app;
