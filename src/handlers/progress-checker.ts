@@ -64,8 +64,7 @@ export class ProgressChecker {
       await this.postToSlack(
         channel,
         threadId,
-        `⏱️ Progress monitoring stopped after 30 minutes. The task may still be in progress.`,
-        slackMessageTs
+        `⏱️ Progress monitoring stopped after 30 minutes. The task may still be in progress.`
       );
 
       if (request.originalMessageTs) {
