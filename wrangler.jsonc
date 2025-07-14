@@ -6,5 +6,9 @@
   "observability": { "enabled": true, "head_sampling_rate": 1 },
   "kv_namespaces": [
     { "binding": "KV", "id": "1b37967f720547e7b7c246786229eb9d" }
-  ]
+  ],
+  "queues": {
+    "producers": [{ "binding": "PROGRESS_QUEUE", "queue": "progress-checks" }],
+    "consumers": [{ "queue": "progress-checks" }]
+  }
 }

@@ -6,6 +6,7 @@ export interface CloudflareBindings {
   GITHUB_REPO: string;
   WORKER_URL?: string;
   KV: KVNamespace;
+  PROGRESS_QUEUE: Queue;
 }
 
 export interface MessageContext {

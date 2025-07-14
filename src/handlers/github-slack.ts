@@ -490,105 +490,24 @@ export class GitHubSlackHandler {
   ): Promise<void> {
     try {
       console.log(
-        `Scheduling progress check in ${this.initialCheckDelayMs}ms for issue:`,
-        params.issueNumber
+        `Scheduling progress check for issue #${params.issueNumber} via queue`
       );
 
-      // Get the base URL from environment or use a default
-      let baseUrl =
-        this.env.WORKER_URL || "https://claude-code-slack.pabio.workers.dev";
-
-      // Ensure the URL has a protocol
-      if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
-        baseUrl = "https://" + baseUrl;
-      }
-
-      const checkProgress = async () => {
-        try {
-          // Wait before checking
-          await new Promise((resolve) =>
-            setTimeout(resolve, this.initialCheckDelayMs)
-          );
-
-          console.log("Triggering progress check after delay");
-
-          // Import ProgressChecker here to avoid circular dependencies
-          const { ProgressChecker } = await import("./progress-checker");
-          const checker = new ProgressChecker(this.env);
-
-          const payload = {
-            issueNumber: params.issueNumber,
-            channel: params.channel,
-            threadId: params.threadId,
-            attemptCount: 0,
-          };
-
-          console.log(
-            "Starting progress check with payload:",
-            JSON.stringify(payload)
-          );
-
-          // Call the checker directly instead of via HTTP
-          const result = await checker.checkProgress(payload);
-
-          if (result.shouldContinue && result.nextRequest) {
-            console.log("Need to continue checking, scheduling next check...");
-
-            // Schedule the next check recursively
-            const scheduleNext = async (request: any) => {
-              console.log(
-                `Waiting 10 seconds before attempt ${request.attemptCount}...`
-              );
-              await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 second delay
-
-              console.log(
-                `Checking progress again, attempt ${request.attemptCount}`
-              );
-              const nextResult = await checker.checkProgress(request);
-
-              if (nextResult.shouldContinue && nextResult.nextRequest) {
-                console.log(
-                  `Still need to continue, scheduling attempt ${nextResult.nextRequest.attemptCount}`
-                );
-                // Continue recursively
-                await scheduleNext(nextResult.nextRequest);
-              } else {
-                console.log("Progress checking complete");
-              }
-            };
-
-            // We need to await this to keep it within the execution context
-            await scheduleNext(result.nextRequest);
-          } else {
-            console.log("No need to continue checking");
-          }
-        } catch (error) {
-          console.error("Error triggering progress check:", error);
-        }
+      const payload = {
+        issueNumber: params.issueNumber,
+        channel: params.channel,
+        threadId: params.threadId,
+        attemptCount: 0,
       };
 
-      if (executionCtx) {
-        // Use waitUntil to run in background
-        console.log("Using executionCtx.waitUntil for background processing");
-        executionCtx.waitUntil(checkProgress());
-      } else {
-        // Fallback: trigger immediately without delay
-        console.log("No executionCtx, triggering immediately");
-        await fetch(`${baseUrl}/check-progress`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            issueNumber: params.issueNumber,
-            channel: params.channel,
-            threadId: params.threadId,
-            attemptCount: 0,
-          }),
-        });
-      }
+      // Send the initial check to the queue with a delay
+      await this.env.PROGRESS_QUEUE.send(payload, {
+        delaySeconds: 10, // Initial 10 second delay
+      });
+
+      console.log("Progress check queued successfully");
     } catch (error) {
-      console.error("Failed to schedule progress check:", error);
+      console.error("Failed to queue progress check:", error);
     }
   }
 }
