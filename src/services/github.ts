@@ -202,7 +202,12 @@ export class GitHubService {
   }
 
   isTaskFinished(commentBody: string): boolean {
-    // Check for various completion patterns from any commenter
+    // Check if the comment contains the "Create PR" button/link
+    if (commentBody.includes("[Create PR ➔]")) {
+      return true;
+    }
+
+    // Also check for other completion patterns
     const finishedPatterns = [
       "claude finished",
       "implementation complete",

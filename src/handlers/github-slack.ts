@@ -8,7 +8,6 @@ export class GitHubSlackHandler {
   private env: CloudflareBindings;
   private github: GitHubService;
   private kvPrefix = "github_issue:";
-  private initialCheckDelayMs = 10000;
 
   constructor(env: CloudflareBindings) {
     this.env = env;
@@ -237,11 +236,7 @@ export class GitHubSlackHandler {
         thread_ts: threadId,
       });
 
-      await slackContext.client.reactions.remove({
-        channel,
-        timestamp: ts,
-        name: "eyes",
-      });
+      // Don't remove the eyes emoji yet - wait until the task is complete
 
       // Trigger progress checking after delay
       await this.triggerProgressCheck(
@@ -249,6 +244,7 @@ export class GitHubSlackHandler {
           issueNumber: result.number,
           channel,
           threadId,
+          originalMessageTs: ts, // Pass the original message timestamp
         },
         executionCtx
       );
@@ -485,6 +481,7 @@ export class GitHubSlackHandler {
       issueNumber: number;
       channel: string;
       threadId: string;
+      originalMessageTs?: string;
     },
     executionCtx?: ExecutionContext
   ): Promise<void> {
@@ -498,6 +495,8 @@ export class GitHubSlackHandler {
         channel: params.channel,
         threadId: params.threadId,
         attemptCount: 0,
+        originalMessageTs: params.originalMessageTs,
+        startTime: Date.now(), // Track when monitoring started
       };
 
       // Send the initial check to the queue with a delay
