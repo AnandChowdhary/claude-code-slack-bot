@@ -58,7 +58,7 @@ export class ProgressChecker {
       await this.postToSlack(
         channel,
         threadId,
-        `⏱️ Claude hasn't responded yet. The check has timed out after ${
+        `⏱️ No new comments found. The check has timed out after ${
           (this.maxAttempts * this.delayMs) / 1000
         } seconds.`,
         slackMessageTs
@@ -74,17 +74,17 @@ export class ProgressChecker {
       await this.postToSlack(
         channel,
         threadId,
-        `❌ Failed to check Claude's progress: ${comments.error}`,
+        `❌ Failed to check for new comments: ${comments.error}`,
         slackMessageTs
       );
       return { shouldContinue: false };
     }
 
-    // Find Claude's comments
-    const claudeComments = this.github.findClaudeComments(comments);
+    // Get all comments
+    const allComments = this.github.getAllComments(comments);
 
-    if (claudeComments.length === 0) {
-      console.log("No Claude comments found yet");
+    if (allComments.length === 0) {
+      console.log("No comments found yet");
       return {
         shouldContinue: true,
         nextRequest: {
@@ -94,8 +94,8 @@ export class ProgressChecker {
       };
     }
 
-    // Get the latest Claude comment
-    const latestComment = claudeComments[claudeComments.length - 1];
+    // Get the latest comment
+    const latestComment = allComments[allComments.length - 1];
 
     // Check if this is a new comment or an update
     const isNewComment = !lastCommentId || latestComment.id > lastCommentId;
@@ -104,13 +104,14 @@ export class ProgressChecker {
       new Date(latestComment.updated_at) > new Date(latestComment.created_at);
 
     if (isNewComment || hasBeenUpdated) {
-      console.log(`Claude comment ${isNewComment ? "created" : "updated"}:`, {
+      console.log(`Comment ${isNewComment ? "created" : "updated"}:`, {
         id: latestComment.id,
+        user: latestComment.user.login,
         updated_at: latestComment.updated_at,
       });
 
-      // Format Claude's response for Slack
-      const slackMessage = this.formatClaudeResponse(latestComment);
+      // Format the comment for Slack
+      const slackMessage = this.formatCommentForSlack(latestComment);
 
       // Post or update in Slack
       const slackResponse = await this.postToSlack(
@@ -123,9 +124,9 @@ export class ProgressChecker {
       // Extract message timestamp from response
       const newSlackTs = slackResponse?.ts || slackMessageTs;
 
-      // Check if Claude is finished
-      if (this.github.isClaudeFinished(latestComment.body)) {
-        console.log("Claude has finished, stopping progress check");
+      // Check if task is finished
+      if (this.github.isTaskFinished(latestComment.body)) {
+        console.log("Task marked as finished, stopping progress check");
         return { shouldContinue: false };
       }
 
@@ -151,8 +152,9 @@ export class ProgressChecker {
     };
   }
 
-  private formatClaudeResponse(comment: any): string {
-    const header = "🤖 *Claude's Response*";
+  private formatCommentForSlack(comment: any): string {
+    const username = comment.user.login;
+    const header = `💬 *Comment from ${username}*`;
     const timestamp = new Date(comment.updated_at).toLocaleString();
     const link = `<${comment.html_url}|View on GitHub>`;
 
@@ -161,7 +163,7 @@ export class ProgressChecker {
     if (body.length > 3000) {
       body =
         body.substring(0, 2900) +
-        "...\n\n_[Response truncated. See full response on GitHub]_";
+        "...\n\n_[Comment truncated. See full comment on GitHub]_";
     }
 
     return `${header} (${timestamp})\n\n${body}\n\n${link}`;

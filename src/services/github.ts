@@ -19,13 +19,6 @@ export class GitHubService {
   private repo: string;
 
   constructor(token: string, owner: string, repo: string) {
-    console.log("Initializing GitHub service with:", {
-      owner,
-      repo,
-      tokenLength: token?.length || 0,
-      tokenPrefix: token?.substring(0, 4) || "none",
-    });
-
     this.octokit = new Octokit({
       auth: token,
     });
@@ -203,28 +196,13 @@ export class GitHubService {
     }
   }
 
-  findClaudeComments(comments: any[]): any[] {
-    // Claude's GitHub username might be 'claude-ai', 'claude', or similar
-    // We'll also check for comments that start with the Claude response pattern
-    return comments.filter((comment) => {
-      const username = comment.user.login.toLowerCase();
-      const isClaude =
-        username.includes("claude") ||
-        username.includes("anthropic") ||
-        comment.body.includes("I'll help") ||
-        comment.body.includes("I will help") ||
-        comment.body.includes("Let me help");
-
-      if (isClaude) {
-        console.log(`Found Claude comment from user: ${comment.user.login}`);
-      }
-
-      return isClaude;
-    });
+  getAllComments(comments: any[]): any[] {
+    console.log(`Found ${comments.length} total comments`);
+    return comments;
   }
 
-  isClaudeFinished(commentBody: string): boolean {
-    // Check for various completion patterns
+  isTaskFinished(commentBody: string): boolean {
+    // Check for various completion patterns from any commenter
     const finishedPatterns = [
       "claude finished",
       "implementation complete",
@@ -234,6 +212,9 @@ export class GitHubService {
       "completed the implementation",
       "all changes have been made",
       "implementation is complete",
+      "resolved",
+      "fixed",
+      "closing this issue",
     ];
 
     const lowerBody = commentBody.toLowerCase();

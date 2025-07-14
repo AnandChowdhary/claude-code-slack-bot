@@ -11,15 +11,6 @@ export class GitHubSlackHandler {
   private initialCheckDelayMs = 10000;
 
   constructor(env: CloudflareBindings) {
-    console.log("Initializing GitHubSlackHandler with env vars:", {
-      hasGithubToken: !!env.GITHUB_TOKEN,
-      githubTokenLength: env.GITHUB_TOKEN?.length || 0,
-      githubTokenPrefix: env.GITHUB_TOKEN?.substring(0, 4) || "none",
-      githubOwner: env.GITHUB_OWNER || GITHUB_OWNER,
-      githubRepo: env.GITHUB_REPO || GITHUB_REPO,
-      usingDefaults: !env.GITHUB_OWNER || !env.GITHUB_REPO,
-    });
-
     this.env = env;
     this.github = new GitHubService(
       env.GITHUB_TOKEN,
@@ -135,14 +126,14 @@ export class GitHubSlackHandler {
         debugInfo.push(`Owner: ${this.env.GITHUB_OWNER || GITHUB_OWNER}`);
         debugInfo.push(`Repo: ${this.env.GITHUB_REPO || GITHUB_REPO}`);
         debugInfo.push(`Title: "New feature request"`);
-        debugInfo.push(`Labels: slack-request, feature-request`);
+        debugInfo.push(`Labels: slack-request`);
       }
 
       console.log("Creating GitHub issue from Slack message");
       const result = await this.github.createIssue(
         "New feature request",
         issueBody,
-        ["slack-request", "feature-request"]
+        ["slack-request"]
       );
 
       if ("error" in result) {
@@ -541,25 +532,35 @@ export class GitHubSlackHandler {
           const result = await checker.checkProgress(payload);
 
           if (result.shouldContinue && result.nextRequest) {
+            console.log("Need to continue checking, scheduling next check...");
+
             // Schedule the next check recursively
             const scheduleNext = async (request: any) => {
+              console.log(
+                `Waiting 10 seconds before attempt ${request.attemptCount}...`
+              );
               await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 second delay
+
               console.log(
                 `Checking progress again, attempt ${request.attemptCount}`
               );
-
               const nextResult = await checker.checkProgress(request);
 
               if (nextResult.shouldContinue && nextResult.nextRequest) {
+                console.log(
+                  `Still need to continue, scheduling attempt ${nextResult.nextRequest.attemptCount}`
+                );
                 // Continue recursively
                 await scheduleNext(nextResult.nextRequest);
+              } else {
+                console.log("Progress checking complete");
               }
             };
 
-            // Don't await this - let it run in background
-            scheduleNext(result.nextRequest).catch((error) => {
-              console.error("Error in recursive check:", error);
-            });
+            // We need to await this to keep it within the execution context
+            await scheduleNext(result.nextRequest);
+          } else {
+            console.log("No need to continue checking");
           }
         } catch (error) {
           console.error("Error triggering progress check:", error);
