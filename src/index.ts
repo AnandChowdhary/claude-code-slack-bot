@@ -30,6 +30,7 @@ app.all("/slack/events", async (c) => {
       thread_ts: payload.thread_ts,
       ts: payload.ts,
       context,
+      executionCtx: c.executionCtx,
     });
   });
 
@@ -64,6 +65,7 @@ app.all("/slack/events", async (c) => {
           thread_ts: payload.thread_ts,
           ts: payload.ts,
           context,
+          executionCtx: c.executionCtx,
         });
       }
     }

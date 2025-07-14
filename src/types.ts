@@ -14,6 +14,7 @@ export interface MessageContext {
   thread_ts: string | undefined;
   ts: string;
   context: any;
+  executionCtx?: ExecutionContext;
 }
 
 export interface DebugInfo {

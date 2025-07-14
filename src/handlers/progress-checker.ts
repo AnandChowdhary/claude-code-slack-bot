@@ -251,19 +251,20 @@ export class ProgressChecker {
 
     console.log(`Scheduling next check in ${this.delayMs}ms`);
 
-    // Use setTimeout to delay the request
-    setTimeout(async () => {
-      try {
-        await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(request),
-        });
-      } catch (error) {
-        console.error("Failed to schedule next check:", error);
-      }
-    }, this.delayMs);
+    try {
+      // Wait for the delay period
+      await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+
+      console.log("Triggering next progress check");
+      await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+    } catch (error) {
+      console.error("Failed to schedule next check:", error);
+    }
   }
 }

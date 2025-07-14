@@ -8,6 +8,7 @@ export class GitHubSlackHandler {
   private env: CloudflareBindings;
   private github: GitHubService;
   private kvPrefix = "github_issue:";
+  private initialCheckDelayMs = 10000; // 10 seconds (was 60000 for 1 minute)
 
   constructor(env: CloudflareBindings) {
     console.log("Initializing GitHubSlackHandler with env vars:", {
@@ -39,7 +40,14 @@ export class GitHubSlackHandler {
   }
 
   async handleMention(context: MessageContext): Promise<void> {
-    const { text, channel, thread_ts, ts, context: slackContext } = context;
+    const {
+      text,
+      channel,
+      thread_ts,
+      ts,
+      context: slackContext,
+      executionCtx,
+    } = context;
     const threadId = thread_ts || ts;
     const isDebugMode = text.includes("[DEBUG]");
     const debugInfo: string[] = [];
@@ -245,11 +253,14 @@ export class GitHubSlackHandler {
       });
 
       // Trigger progress checking after 1 minute
-      await this.triggerProgressCheck({
-        issueNumber: result.number,
-        channel,
-        threadId,
-      });
+      await this.triggerProgressCheck(
+        {
+          issueNumber: result.number,
+          channel,
+          threadId,
+        },
+        executionCtx
+      );
     } catch (error) {
       console.error("Error processing message:", error);
 
@@ -478,11 +489,14 @@ export class GitHubSlackHandler {
     }
   }
 
-  private async triggerProgressCheck(params: {
-    issueNumber: number;
-    channel: string;
-    threadId: string;
-  }): Promise<void> {
+  private async triggerProgressCheck(
+    params: {
+      issueNumber: number;
+      channel: string;
+      threadId: string;
+    },
+    executionCtx?: ExecutionContext
+  ): Promise<void> {
     try {
       console.log(
         "Scheduling progress check in 60 seconds for issue:",
@@ -493,9 +507,12 @@ export class GitHubSlackHandler {
       const baseUrl =
         this.env.WORKER_URL || "https://claude-code-slack.pabio.workers.dev";
 
-      // Schedule the first check after 1 minute
-      setTimeout(async () => {
+      const checkProgress = async () => {
         try {
+          // Wait for 1 minute before checking
+          await new Promise((resolve) => setTimeout(resolve, 60000));
+
+          console.log("Triggering progress check after delay");
           const response = await fetch(`${baseUrl}/check-progress`, {
             method: "POST",
             headers: {
@@ -517,7 +534,28 @@ export class GitHubSlackHandler {
         } catch (error) {
           console.error("Error triggering progress check:", error);
         }
-      }, 60000); // 1 minute delay
+      };
+
+      if (executionCtx) {
+        // Use waitUntil to run in background
+        console.log("Using executionCtx.waitUntil for background processing");
+        executionCtx.waitUntil(checkProgress());
+      } else {
+        // Fallback: trigger immediately without delay
+        console.log("No executionCtx, triggering immediately");
+        await fetch(`${baseUrl}/check-progress`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            issueNumber: params.issueNumber,
+            channel: params.channel,
+            threadId: params.threadId,
+            attemptCount: 0,
+          }),
+        });
+      }
     } catch (error) {
       console.error("Failed to schedule progress check:", error);
     }
