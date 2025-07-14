@@ -20,8 +20,8 @@ interface SlackClient {
 export class ProgressChecker {
   private env: CloudflareBindings;
   private github: GitHubService;
-  private maxAttempts = 10;
-  private delayMs = 60000; // 1 minute
+  private maxAttempts = 100;
+  private delayMs = 10000;
 
   constructor(env: CloudflareBindings) {
     this.env = env;
@@ -58,7 +58,9 @@ export class ProgressChecker {
       await this.postToSlack(
         channel,
         threadId,
-        "⏱️ Claude hasn't responded yet. The check has timed out after 10 minutes.",
+        `⏱️ Claude hasn't responded yet. The check has timed out after ${
+          (this.maxAttempts * this.delayMs) / 1000
+        } seconds.`,
         slackMessageTs
       );
       return { shouldContinue: false };

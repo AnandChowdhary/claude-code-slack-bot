@@ -8,7 +8,7 @@ export class GitHubSlackHandler {
   private env: CloudflareBindings;
   private github: GitHubService;
   private kvPrefix = "github_issue:";
-  private initialCheckDelayMs = 10000; // 10 seconds (was 60000 for 1 minute)
+  private initialCheckDelayMs = 10000;
 
   constructor(env: CloudflareBindings) {
     console.log("Initializing GitHubSlackHandler with env vars:", {
@@ -252,7 +252,7 @@ export class GitHubSlackHandler {
         name: "eyes",
       });
 
-      // Trigger progress checking after 1 minute
+      // Trigger progress checking after delay
       await this.triggerProgressCheck(
         {
           issueNumber: result.number,
@@ -499,7 +499,7 @@ export class GitHubSlackHandler {
   ): Promise<void> {
     try {
       console.log(
-        "Scheduling progress check in 60 seconds for issue:",
+        `Scheduling progress check in ${this.initialCheckDelayMs}ms for issue:`,
         params.issueNumber
       );
 
@@ -509,8 +509,10 @@ export class GitHubSlackHandler {
 
       const checkProgress = async () => {
         try {
-          // Wait for 1 minute before checking
-          await new Promise((resolve) => setTimeout(resolve, 60000));
+          // Wait before checking
+          await new Promise((resolve) =>
+            setTimeout(resolve, this.initialCheckDelayMs)
+          );
 
           console.log("Triggering progress check after delay");
           const response = await fetch(`${baseUrl}/check-progress`, {
