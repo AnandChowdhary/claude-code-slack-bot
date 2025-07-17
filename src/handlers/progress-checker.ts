@@ -12,6 +12,7 @@ interface ProgressCheckRequest {
   originalMessageTs?: string;
   startTime?: number;
   isFinalCheck?: boolean;
+  lastUpdateTime?: number;
 }
 
 interface SlackClient {
@@ -49,6 +50,7 @@ export class ProgressChecker {
       lastCommentId,
       slackMessageTs,
       startTime,
+      lastUpdateTime,
     } = request;
 
     console.log("Checking progress:", {
@@ -57,16 +59,22 @@ export class ProgressChecker {
       lastCommentId,
       slackMessageTs,
       startTime,
+      lastUpdateTime,
     });
 
+    // Check for 30-minute overall timeout
     if (startTime && Date.now() - startTime > 30 * 60 * 1000) {
       console.log("30 minutes timeout reached, stopping progress check");
-      await this.postToSlack(
-        channel,
-        threadId,
-        `⏱️ Progress monitoring stopped after 30 minutes. The task may still be in progress.`
-      );
+      if (request.originalMessageTs) {
+        await this.removeEyesEmoji(channel, request.originalMessageTs);
+      }
 
+      return { shouldContinue: false };
+    }
+
+    // Check for 10-minute inactivity timeout
+    if (lastUpdateTime && Date.now() - lastUpdateTime > 10 * 60 * 1000) {
+      console.log("10 minutes of inactivity, considering task complete");
       if (request.originalMessageTs) {
         await this.removeEyesEmoji(channel, request.originalMessageTs);
       }
@@ -175,6 +183,7 @@ export class ProgressChecker {
             slackMessageTs: newSlackTs,
             originalMessageTs: request.originalMessageTs,
             startTime: request.startTime,
+            lastUpdateTime: Date.now(),
             isFinalCheck: true,
           },
         };
@@ -195,6 +204,7 @@ export class ProgressChecker {
           slackMessageTs: newSlackTs,
           originalMessageTs: request.originalMessageTs,
           startTime: request.startTime,
+          lastUpdateTime: Date.now(),
         },
       };
     }
@@ -204,6 +214,7 @@ export class ProgressChecker {
       nextRequest: {
         ...request,
         attemptCount: attemptCount + 1,
+        lastUpdateTime: request.lastUpdateTime,
       },
     };
   }

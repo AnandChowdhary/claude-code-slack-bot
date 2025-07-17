@@ -498,6 +498,7 @@ export class GitHubSlackHandler {
         attemptCount: 0,
         originalMessageTs: params.originalMessageTs,
         startTime: Date.now(),
+        lastUpdateTime: Date.now(),
       };
 
       await this.env.PROGRESS_QUEUE.send(payload, {
