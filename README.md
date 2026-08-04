@@ -31,7 +31,7 @@ The bot creates a GitHub issue with full context from your Slack conversation:
 - Slack workspace with admin access
 - GitHub repository with Claude Code configured
 - GitHub personal access token with `repo` scope
-- Node.js 18+ and npm/yarn
+- Node.js 22+ and npm/yarn
 
 ### 1. Clone and install
 
