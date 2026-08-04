@@ -1,6 +1,9 @@
 {
   "name": "claude-code-slack",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
@@ -13,5 +16,8 @@
   },
   "devDependencies": {
     "wrangler": "^4.4.0"
+  },
+  "overrides": {
+    "undici": "7.29.0"
   }
 }
